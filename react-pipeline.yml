@@ -1,0 +1,100 @@
+  name: React CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      # Step 3: Install dependencies
+      - name: Install Dependencies
+        run: npm install
+
+      # Step 4: Run unit tests
+      - name: Run Unit Tests
+        run: npm test -- --coverage
+
+      # Step 5: Build React App
+      - name: Build React App
+        run: npm run build
+
+      # Step 6: Upload build artifact
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: react-build
+          path: build/
+
+  sonar-quality-gate:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # Step 2: Run SonarCloud scan
+      - name: Run SonarCloud Scan
+        uses: sonarsource/sonarcloud-github-action@v2
+        with:
+          token: ${{ secrets.SONAR_TOKEN }}
+          args: >
+            -Dsonar.projectKey=my-react-app
+            -Dsonar.organization=my-org
+            -Dsonar.sources=src
+            -Dsonar.tests=src
+            -Dsonar.test.inclusions=**/*.test.js
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+
+      # Step 3: Check SonarCloud quality gate
+      - name: Check Quality Gate Status
+        run: |
+          STATUS=$(curl -u ${{ secrets.SONAR_TOKEN }} -X GET "https://sonarcloud.io/api/qualitygates/project_status?projectKey=my-react-app")
+          GATE_STATUS=$(echo $STATUS | jq -r '.projectStatus.status')
+          if [ "$GATE_STATUS" != "OK" ]; then
+            echo "Quality gate failed: $GATE_STATUS"
+            exit 1
+          else
+            echo "Quality gate passed!"
+          fi
+
+  docker-build-and-run:
+    runs-on: ubuntu-latest
+    needs: sonar-quality-gate
+
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # Step 2: Download build artifact
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: react-build
+
+      # Step 3: Build Docker image
+      - name: Build Docker Image
+        run: docker build -t react-app:latest .
+
+      # Step 4: Run Docker container
+      - name: Run Docker Container
+        run: docker run -d -p 3000:3000 react-app:latest
