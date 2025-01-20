@@ -98,14 +98,14 @@ jobs:
             --package-version 1.0.0 \
             --file build.zip 
 
-       # Step 2.7: Save build artifact
+       # Step 2.4: Save build artifact
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
         with:
           name: react-app-build
           path: build.zip    
 
-      # Step 2.4: Save build artifact
+      # Step 2.5: Save build artifact
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
         with:
